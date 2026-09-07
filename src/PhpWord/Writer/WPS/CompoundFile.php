@@ -132,9 +132,10 @@ final class CompoundFile
         }
 
         $firstFatSector = $nonFatSectorCount;
-        $fatEntries = array_fill(0, $fatSectorCount * 128, self::FREESECT);
-        if ($fatEntries === false) {
-            throw new RuntimeException('Could not allocate the CFB FAT table.');
+        $fatEntries = [];
+        $fatEntryCount = $fatSectorCount * 128;
+        for ($i = 0; $i < $fatEntryCount; ++$i) {
+            $fatEntries[] = self::FREESECT;
         }
 
         foreach ($streamMeta as $meta) {
