@@ -1,0 +1,43 @@
+name: Import validated WPS snapshot
+
+on:
+  push:
+    branches:
+      - feature/wps-writer
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: feature/wps-writer
+
+      - name: Import exact green snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SNAPSHOT=f935bf513d68e0f4bb0bfb15412c782c068c3c04
+          BASE="https://raw.githubusercontent.com/Furox-Art/quantum-reasoning-skill/${SNAPSHOT}/phpword-wps-ci/final"
+
+          mkdir -p src/PhpWord/Writer/WPS tests/PhpWordTests/Writer
+
+          curl -fL "$BASE/src/PhpWord/IOFactory.php" -o src/PhpWord/IOFactory.php
+          curl -fL "$BASE/src/PhpWord/Writer/WPS.php" -o src/PhpWord/Writer/WPS.php
+          for file in CompatibilityReport.php CompoundFile.php Contents.php DocumentText.php ImagePolicy.php StylePolicy.php TablePolicy.php Utf16.php Validator.php; do
+            curl -fL "$BASE/src/PhpWord/Writer/WPS/$file" -o "src/PhpWord/Writer/WPS/$file"
+          done
+          curl -fL "$BASE/tests/PhpWordTests/Writer/WPSTest.php" -o tests/PhpWordTests/Writer/WPSTest.php
+
+          rm -f .github/workflows/import-wps-green-snapshot.yml
+
+          git diff --check
+          git config user.name 'Furox-Art'
+          git config user.email '177975472+Furox-Art@users.noreply.github.com'
+          git add src/PhpWord/IOFactory.php src/PhpWord/Writer/WPS.php src/PhpWord/Writer/WPS tests/PhpWordTests/Writer/WPSTest.php .github/workflows/import-wps-green-snapshot.yml
+          git commit -m 'Implement Microsoft Works WPS writer'
+          git push origin HEAD:feature/wps-writer
