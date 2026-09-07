@@ -90,7 +90,7 @@ $writer->save(__DIR__ . '/sample.pdf');
 
 #### Specify the PDF Renderer
 
-Before PHPWord can write a PDF, you **must** specify the renderer you use and the path to it.
+Before PHPWord can write a PDF, you **must** specify the renderer to use and the path to it.
 Currently, three renderers are supported: 
 
 - [DomPDF](https://github.com/dompdf/dompdf)
