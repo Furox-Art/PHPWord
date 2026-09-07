@@ -90,7 +90,7 @@ $writer->save(__DIR__ . '/sample.pdf');
 
 #### Specify the PDF Renderer
 
-Before PHPWord can write a PDF, you **must** specify the renderer to use and the path to it.
+Before PHPWord can write a PDF, you **must** specify the renderer you use and the path to it.
 Currently, three renderers are supported: 
 
 - [DomPDF](https://github.com/dompdf/dompdf)
@@ -127,6 +127,18 @@ The name of the writer is `RTF`.
 $writer = IOFactory::createWriter($oPhpWord, 'RTF');
 $writer->save(__DIR__ . '/sample.rtf');
 ```
+
+## WPS
+The name of the writer is `WPS`. It creates legacy Microsoft Works 7/8 `.wps` documents.
+
+``` php
+<?php
+
+$writer = IOFactory::createWriter($oPhpWord, 'WPS');
+$writer->save(__DIR__ . '/sample.wps');
+```
+
+The writer supports text and paragraphs, basic character and paragraph styles, fixed-layout tables, and inline images when their representation can be preserved without approximation. Mappings that would lose fidelity are reported rather than silently converted.
 
 ## Word2007
 The name of the writer is `Word2007`.
