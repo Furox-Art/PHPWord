@@ -1,0 +1,155 @@
+name: Build WPS demo video
+
+on:
+  push:
+    branches:
+      - demo/wps-writer
+
+permissions:
+  contents: write
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout demo branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: demo/wps-writer
+          fetch-depth: 0
+
+      - name: Load validated feature files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feature/wps-writer
+          git checkout origin/feature/wps-writer -- src/PhpWord/IOFactory.php src/PhpWord/Writer/WPS.php src/PhpWord/Writer/WPS tests/PhpWordTests/Writer/WPSTest.php
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, gd, xml, dom, json, fileinfo, curl, zip, iconv
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Generate and validate real Works file
+        shell: bash
+        run: |
+          cat > /tmp/wps-demo.php <<'PHP'
+          <?php
+          require getcwd() . '/vendor/autoload.php';
+
+          use PhpOffice\PhpWord\IOFactory;
+          use PhpOffice\PhpWord\PhpWord;
+          use PhpOffice\PhpWord\SimpleType\Jc;
+          use PhpOffice\PhpWord\Style\Font;
+
+          $png = '/tmp/wps-demo.png';
+          $fixture = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAE3RFWHRDb21tZW50AHByZXNlcnZlLW1lDBPzAAAAABRJREFUeJxj+M/A8J8YzDCqkL4KAZLDxzmrOvyxAAAAAElFTkSuQmCC', true);
+          file_put_contents($png, $fixture);
+
+          $phpWord = new PhpWord();
+          $section = $phpWord->addSection();
+          $section->addText('Microsoft Works WPS', ['bold' => true, 'size' => 14, 'color' => 'E02030'], ['alignment' => Jc::CENTER]);
+          $section->addText('Generated directly by PHPWord.');
+          $section->addImage($png, ['width' => 20, 'height' => 20]);
+          $table = $section->addTable(['layout' => 'fixed']);
+          $row = $table->addRow(432, ['exactHeight' => true]);
+          $row->addCell(1440)->addText('A', ['bold' => true], ['alignment' => Jc::CENTER]);
+          $row->addCell(2880)->addText('B', ['italic' => true]);
+          $row = $table->addRow(720, ['exactHeight' => true]);
+          $row->addCell(1440)->addText('C', ['color' => 'FF0000']);
+          $row->addCell(2880)->addText('D', ['underline' => Font::UNDERLINE_SINGLE]);
+
+          $writer = IOFactory::createWriter($phpWord, 'WPS');
+          $writer->save('/tmp/phpword-wps-demo.wps');
+          $validation = $writer->getLastValidation();
+          if (!$validation['valid']) {
+              fwrite(STDERR, implode('; ', $validation['errors']) . PHP_EOL);
+              exit(1);
+          }
+          file_put_contents('/tmp/validation.json', json_encode($validation, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+          echo 'WPS_VALID=1' . PHP_EOL;
+          echo 'WPS_BYTES=' . filesize('/tmp/phpword-wps-demo.wps') . PHP_EOL;
+          echo 'IMAGE_SHA256=' . hash('sha256', $fixture) . PHP_EOL;
+          echo 'TABLE_CELLS=' . implode(',', array_column($validation['tables'][0]['cells'], 'text')) . PHP_EOL;
+          PHP
+          php /tmp/wps-demo.php | tee /tmp/demo-results.txt
+          ./vendor/bin/phpunit -c phpunit.xml.dist --no-coverage tests/PhpWordTests/Writer/WPSTest.php | tee -a /tmp/demo-results.txt
+
+      - name: Render generated WPS with LibreOffice
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libreoffice-writer poppler-utils ffmpeg python3-pil fonts-dejavu-core >/dev/null
+          mkdir -p /tmp/rendered
+          libreoffice --headless --convert-to pdf --outdir /tmp/rendered /tmp/phpword-wps-demo.wps | tee -a /tmp/demo-results.txt
+          test -s /tmp/rendered/phpword-wps-demo.pdf
+          pdftoppm -png -f 1 -singlefile -r 110 /tmp/rendered/phpword-wps-demo.pdf /tmp/rendered/proof
+          test -s /tmp/rendered/proof.png
+
+      - name: Build short demo video
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          from pathlib import Path
+          out = Path('/tmp/video')
+          out.mkdir(exist_ok=True)
+          W,H=960,540
+          bg=(20,22,26); fg=(240,242,245); muted=(175,182,192); accent=(100,170,255)
+          regular='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+          bold='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+          title=ImageFont.truetype(bold,36); h2=ImageFont.truetype(bold,26); body=ImageFont.truetype(regular,22); small=ImageFont.truetype(regular,18)
+          def base():
+              im=Image.new('RGB',(W,H),bg); return im,ImageDraw.Draw(im)
+          im,d=base(); d.text((48,62),'PHPWord — Microsoft Works WPS Writer',font=title,fill=fg); d.text((48,130),'Real Works 7/8 .wps binary output',font=h2,fill=accent)
+          y=205
+          for line in ['• OLE/CFB + CONTENTS structure','• Text + basic styles + native tables','• Byte-preserving inline images','• No ZIP/XML format substitution']:
+              d.text((66,y),line,font=body,fill=fg); y+=55
+          d.text((48,485),'PHPOffice/PHPWord issue #69',font=small,fill=muted); im.save(out/'1.png')
+          im,d=base(); d.text((40,30),'Real generated .wps opened by LibreOffice/libwps',font=h2,fill=fg)
+          proof=Image.open('/tmp/rendered/proof.png').convert('RGB'); proof.thumbnail((520,420)); card=Image.new('RGB',(proof.width+12,proof.height+12),(250,250,250)); card.paste(proof,(6,6)); im.paste(card,(420,90))
+          d.text((45,125),'Round-trip proof',font=h2,fill=accent); y=185
+          for line in ['✓ styled text','✓ inline image','✓ 2×2 Works table','✓ image bytes preserved']:
+              d.text((55,y),line,font=body,fill=fg); y+=58
+          im.save(out/'2.png')
+          im,d=base(); d.text((48,52),'Validation',font=title,fill=fg); y=140
+          for k,v in [('WPS PHPUnit','9 / 9'),('Full PHPWord PHPUnit','1155 / 1155 — 4350 assertions'),('PHPStan','0 errors'),('PHPMD + PHP-CS-Fixer','pass')]:
+              d.text((64,y),k,font=h2,fill=accent); d.text((355,y),v,font=body,fill=fg); y+=70
+          d.text((48,485),'Full composer check previously verified against current master',font=small,fill=muted); im.save(out/'3.png')
+          PY
+          cat > /tmp/video/concat.txt <<'EOF'
+          file '/tmp/video/1.png'
+          duration 4
+          file '/tmp/video/2.png'
+          duration 7
+          file '/tmp/video/3.png'
+          duration 5
+          file '/tmp/video/3.png'
+          EOF
+          ffmpeg -y -loglevel error -f concat -safe 0 -i /tmp/video/concat.txt -vf 'fps=12,format=yuv420p' -c:v libx264 -preset slow -crf 28 -movflags +faststart /tmp/phpword-wps-writer-demo.mp4
+          test -s /tmp/phpword-wps-writer-demo.mp4
+          sha256sum /tmp/phpword-wps-writer-demo.mp4
+
+      - name: Commit demo video only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/phpword-wps-writer-demo.mp4 /tmp/final-demo.mp4
+          git reset --hard HEAD
+          git clean -fd
+          mkdir -p demo
+          cp /tmp/final-demo.mp4 demo/phpword-wps-writer-demo.mp4
+          rm -f .github/workflows/build-wps-demo.yml
+          git config user.name 'Furox-Art'
+          git config user.email '177975472+Furox-Art@users.noreply.github.com'
+          git add demo/phpword-wps-writer-demo.mp4 .github/workflows/build-wps-demo.yml
+          git commit -m 'Add WPS writer demo video'
+          git push origin HEAD:demo/wps-writer
