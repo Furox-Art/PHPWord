@@ -405,9 +405,9 @@ final class Contents
         if (!preg_match('/^[0-9A-F]{6}$/D', $hex)) {
             throw new RuntimeException('Invalid RGB font color.');
         }
-        $r = hexdec(substr($hex, 0, 2));
-        $g = hexdec(substr($hex, 2, 2));
-        $b = hexdec(substr($hex, 4, 2));
+        $r = hexdec((string) substr($hex, 0, 2));
+        $g = hexdec((string) substr($hex, 2, 2));
+        $b = hexdec((string) substr($hex, 4, 2));
 
         return $r | ($g << 8) | ($b << 16);
     }

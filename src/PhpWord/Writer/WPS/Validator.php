@@ -921,10 +921,11 @@ final class Validator
             } elseif ($id === 0x03 && ($type === 0x0A || $type === 0x02)) {
                 $font['italic'] = (bool) $value;
             } elseif ($id === 0x0C && $type === 0x22) {
-                if ($value % 12700 !== 0) {
+                $numericValue = (int) $value;
+                if ($numericValue % 12700 !== 0) {
                     throw new RuntimeException('FDPC font size is not an exact integer point size.');
                 }
-                $font['size'] = intdiv($value, 12700);
+                $font['size'] = intdiv($numericValue, 12700);
             } elseif ($id === 0x1E && $type === 0x12) {
                 $font['underline'] = (int) $value;
             } elseif ($id === 0x2E && $type === 0x22) {

@@ -96,17 +96,29 @@ final class Utf16
 
     private static function codePointToUtf8(int $cp): string
     {
+        if ($cp < 0 || $cp > 0x10FFFF) {
+            throw new RuntimeException('Unicode code point is outside the valid range.');
+        }
         if ($cp <= 0x7F) {
-            return chr($cp);
+            return self::byte($cp);
         }
         if ($cp <= 0x7FF) {
-            return chr(0xC0 | ($cp >> 6)) . chr(0x80 | ($cp & 0x3F));
+            return self::byte(0xC0 | ($cp >> 6)) . self::byte(0x80 | ($cp & 0x3F));
         }
         if ($cp <= 0xFFFF) {
-            return chr(0xE0 | ($cp >> 12)) . chr(0x80 | (($cp >> 6) & 0x3F)) . chr(0x80 | ($cp & 0x3F));
+            return self::byte(0xE0 | ($cp >> 12)) . self::byte(0x80 | (($cp >> 6) & 0x3F)) . self::byte(0x80 | ($cp & 0x3F));
         }
 
-        return chr(0xF0 | ($cp >> 18)) . chr(0x80 | (($cp >> 12) & 0x3F))
-            . chr(0x80 | (($cp >> 6) & 0x3F)) . chr(0x80 | ($cp & 0x3F));
+        return self::byte(0xF0 | ($cp >> 18)) . self::byte(0x80 | (($cp >> 12) & 0x3F))
+            . self::byte(0x80 | (($cp >> 6) & 0x3F)) . self::byte(0x80 | ($cp & 0x3F));
+    }
+
+    private static function byte(int $value): string
+    {
+        if ($value < 0 || $value > 255) {
+            throw new RuntimeException('UTF-8 byte is outside the valid range.');
+        }
+
+        return pack('C', $value);
     }
 }

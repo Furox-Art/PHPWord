@@ -267,9 +267,13 @@ final class CompoundFile
             throw new InvalidArgumentException('CFB directory name is too long.');
         }
 
+        if ($type < 0 || $type > 255) {
+            throw new InvalidArgumentException('CFB directory entry type is outside the byte range.');
+        }
+
         $entry = str_pad($nameBytes, 64, "\0");
         $entry .= $this->u16(strlen($nameBytes));
-        $entry .= chr($type) . chr(1); // black node
+        $entry .= pack('C', $type) . chr(1); // black node
         $entry .= $this->u32($left) . $this->u32($right) . $this->u32($child);
         $entry .= str_repeat("\0", 16); // CLSID
         $entry .= $this->u32(0); // state bits
