@@ -544,7 +544,7 @@ class ValidatorTest extends TestCase
      * that byte protects. Patching it must make the validator reject the file
      * with exactly that message, which pins the guard to a reproducible input.
      *
-     * @return array<string, array{0: int, 1: int, 2: string}>
+     * @return array<string, array{0: int, 1: int<0, 255>, 2: string}>
      */
     public static function guardProvider(): array
     {
@@ -713,6 +713,8 @@ class ValidatorTest extends TestCase
     }
 
     /**
+     * @param int<0, 255> $value the byte the provider patches in
+     *
      * @dataProvider guardProvider
      */
     public function testGuardIsReported(int $offset, int $value, string $message): void
@@ -721,7 +723,7 @@ class ValidatorTest extends TestCase
         self::assertNotNull($fixture);
 
         $bytes = $fixture['bytes'];
-        $bytes[$offset] = chr($value);
+        $bytes[$offset] = chr($value & 0xFF);
 
         $result = $this->validate($this->temp($bytes), $fixture['expected']);
 
