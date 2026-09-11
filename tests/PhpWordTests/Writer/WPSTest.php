@@ -343,4 +343,26 @@ class WPSTest extends TestCase
             @unlink($file);
         }
     }
+
+    public function testMoreThanTwoHundredFiftySixFontsAreRejected(): void
+    {
+        // The Works FONT table addresses its entries with a single byte, so a
+        // document that selects more than 256 fonts cannot be represented.
+        $phpWord = new PhpWord();
+        $section = $phpWord->addSection();
+        for ($i = 0; $i < 257; ++$i) {
+            $section->addText('x', ['name' => 'Font' . $i]);
+        }
+
+        $file = tempnam(sys_get_temp_dir(), 'phpword-wps-');
+        self::assertNotFalse($file);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Works basic FONT table supports at most 256 selected font names.');
+            IOFactory::createWriter($phpWord, 'WPS')->save($file);
+        } finally {
+            @unlink($file);
+        }
+    }
 }
